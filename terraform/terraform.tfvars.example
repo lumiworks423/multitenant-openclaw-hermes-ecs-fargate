@@ -1,0 +1,5 @@
+aws_region     = "us-east-1"
+project_name   = "openclaw-mt"
+vpc_cidr       = "10.2.0.0/16"
+slot_count     = 5
+admin_password = "change-me-workshop-2026"
