@@ -190,3 +190,87 @@ resource "aws_ecs_service" "provisioning" {
     container_port   = 8000
   }
 }
+
+# ============================================================
+# Hermes Agent — N ECS Services (one per slot, no ALB routing)
+# ============================================================
+
+resource "aws_ecs_task_definition" "hermes" {
+  count                    = var.slot_count
+  family                   = "${var.project_name}-hermes-${local.slot_ids[count.index]}"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.hermes_cpu
+  memory                   = var.hermes_memory
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.hermes_task.arn
+
+  runtime_platform {
+    cpu_architecture        = "ARM64"
+    operating_system_family = "LINUX"
+  }
+
+  container_definitions = jsonencode([{
+    name      = "hermes-agent"
+    image     = var.hermes_image
+    essential = true
+    command   = ["gateway", "run"]
+
+    portMappings = [{
+      containerPort = 8642
+      protocol      = "tcp"
+    }]
+
+    environment = [
+      { name = "AWS_REGION", value = var.aws_region }
+    ]
+
+    mountPoints = [{
+      sourceVolume  = "hermes-data"
+      containerPath = "/opt/data"
+      readOnly      = false
+    }]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = aws_cloudwatch_log_group.main.name
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "hermes-${local.slot_ids[count.index]}"
+      }
+    }
+  }])
+
+  volume {
+    name = "hermes-data"
+    efs_volume_configuration {
+      file_system_id     = aws_efs_file_system.main.id
+      root_directory     = "/"
+      transit_encryption = "ENABLED"
+      authorization_config {
+        access_point_id = aws_efs_access_point.hermes[count.index].id
+        iam             = "ENABLED"
+      }
+    }
+  }
+}
+
+resource "aws_ecs_service" "hermes" {
+  count            = var.slot_count
+  name             = "${var.project_name}-hermes-${local.slot_ids[count.index]}"
+  cluster          = aws_ecs_cluster.main.id
+  task_definition  = aws_ecs_task_definition.hermes[count.index].arn
+  desired_count    = 1
+  launch_type      = "FARGATE"
+  platform_version = "LATEST"
+
+  enable_execute_command = true
+
+  network_configuration {
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = false
+  }
+
+  depends_on = [aws_efs_mount_target.main]
+}

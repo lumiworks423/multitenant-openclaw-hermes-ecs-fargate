@@ -108,17 +108,6 @@ resource "aws_security_group_rule" "ecs_ingress_alb_provisioning" {
   security_group_id        = aws_security_group.ecs.id
 }
 
-# ALB → Open WebUI :8080 (Hermes slots)
-resource "aws_security_group_rule" "ecs_ingress_alb_openwebui" {
-  type                     = "ingress"
-  from_port                = 8080
-  to_port                  = 8080
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.alb.id
-  description              = "ALB to Open WebUI (Hermes)"
-  security_group_id        = aws_security_group.ecs.id
-}
-
 # --- EFS ingress ---
 
 resource "aws_security_group_rule" "efs_ingress_nfs" {
@@ -302,4 +291,71 @@ resource "aws_iam_role_policy_attachment" "ssm_core" {
 resource "aws_iam_instance_profile" "ssm" {
   name = "${var.project_name}-ssm-profile"
   role = aws_iam_role.ssm.name
+}
+
+# ============================================================
+# IAM — Hermes Task Role (Bedrock + EFS + ECS Exec)
+# ============================================================
+
+resource "aws_iam_role" "hermes_task" {
+  name = "${var.project_name}-hermes-task-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "hermes_bedrock" {
+  name = "bedrock-invoke"
+  role = aws_iam_role.hermes_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["bedrock:InvokeModel*", "bedrock:ListFoundationModels"]
+      Resource = [
+        "arn:aws:bedrock:*::foundation-model/*",
+        "arn:aws:bedrock:*:*:inference-profile/*",
+        "arn:aws:bedrock:*:*:application-inference-profile/*"
+      ]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "hermes_efs" {
+  name = "efs-access"
+  role = aws_iam_role.hermes_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "elasticfilesystem:ClientMount",
+        "elasticfilesystem:ClientWrite"
+      ]
+      Resource = aws_efs_file_system.main.arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "hermes_ecs_exec" {
+  name = "ecs-exec"
+  role = aws_iam_role.hermes_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssmmessages:CreateControlChannel",
+        "ssmmessages:CreateDataChannel",
+        "ssmmessages:OpenControlChannel",
+        "ssmmessages:OpenDataChannel"
+      ]
+      Resource = "*"
+    }]
+  })
 }

@@ -15,39 +15,34 @@ SKIP_BUILD=false
 [[ "${1:-}" == "--skip-build" ]] && SKIP_BUILD=true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"
-TF_DIR="$(cd "${SCRIPT_DIR}/../terraform"; pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.."; pwd)"
 
 echo "=== OpenClaw Multi-Tenant Deploy ==="
 $SKIP_BUILD && echo "  (--skip-build: skipping image build)"
 
-# ── Step 1: Read outputs (SSM Parameter Store or terraform output) ──
-echo "[1/8] Reading outputs..."
-REGION="us-east-1"
-PROJECT_NAME="openclaw-mt"
+# ── Step 1: Read parameters from SSM Parameter Store ──
+echo "[1/8] Reading parameters from SSM..."
+PROJECT_NAME="${PROJECT_NAME:-mt-openclaw-hermes-ecs}"
+REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || echo "${AWS_REGION:-us-east-1}")
 
-# Try SSM first (workshop mode: CodeBuild wrote outputs to SSM)
-# Fall back to terraform output (local dev mode)
-_ssm_get() {
-  aws ssm get-parameter --name "/${PROJECT_NAME}/$1" --query 'Parameter.Value' --output text --region "$REGION" 2>/dev/null
-}
+ssm_get() { aws ssm get-parameter --name "/${PROJECT_NAME}/$1" --query 'Parameter.Value' --output text --region "$REGION"; }
 
-ECS_CLUSTER=$(_ssm_get "ecs-cluster-name" || (cd "$TF_DIR" && terraform output -raw ecs_cluster_name))
-EFS_ID=$(_ssm_get "efs-id" || (cd "$TF_DIR" && terraform output -raw efs_file_system_id))
-SUBNET_ID=$(_ssm_get "private-subnet-id" || (cd "$TF_DIR" && terraform output -json private_subnet_ids | jq -r '.[0]'))
-ECS_SG=$(_ssm_get "ecs-sg-id" || (cd "$TF_DIR" && terraform output -raw ecs_sg_id))
-SSM_PROFILE=$(_ssm_get "ssm-instance-profile" || (cd "$TF_DIR" && terraform output -raw ssm_instance_profile_name))
-PROV_ECR=$(_ssm_get "ecr-provisioning-url" || (cd "$TF_DIR" && terraform output -raw ecr_provisioning_url))
-CF_DOMAIN=$(_ssm_get "cloudfront-domain" || (cd "$TF_DIR" && terraform output -raw cloudfront_domain))
-SLOTS_TABLE=$(_ssm_get "dynamodb-slots-table" || (cd "$TF_DIR" && terraform output -raw dynamodb_slots_table))
-USERS_TABLE=$(_ssm_get "dynamodb-users-table" || (cd "$TF_DIR" && terraform output -raw dynamodb_users_table))
-SLOT_COUNT=$(_ssm_get "slot-count" || (cd "$TF_DIR" && terraform output -json slot_ids | jq length))
+ECS_CLUSTER=$(ssm_get ecs-cluster-name)
+EFS_ID=$(ssm_get efs-id)
+SUBNET_ID=$(ssm_get private-subnet-id)
+ECS_SG=$(ssm_get ecs-sg-id)
+SSM_PROFILE=$(ssm_get ssm-instance-profile)
+PROV_ECR=$(ssm_get ecr-provisioning-url)
+CF_DOMAIN=$(ssm_get cloudfront-domain)
+SLOTS_TABLE=$(ssm_get dynamodb-slots-table)
+USERS_TABLE=$(ssm_get dynamodb-users-table)
+SLOT_COUNT=$(ssm_get slot-count)
 ACCOUNT=$(echo "$PROV_ECR" | cut -d. -f1)
 
 echo "  Region=$REGION Cluster=$ECS_CLUSTER Slots=$SLOT_COUNT"
 echo "  CF=$CF_DOMAIN"
 
-S3_BUCKET="openclaw-mt-build-tmp-${ACCOUNT}"
+S3_BUCKET="${PROJECT_NAME}-build-tmp-${ACCOUNT}"
 TOKENS_OUTPUT=""
 
 if $SKIP_BUILD; then
@@ -65,7 +60,7 @@ else
   # ── Step 2.5: Ensure IAM permissions ──
   echo "[2.5/8] Ensuring IAM permissions..."
   aws iam put-role-policy \
-    --role-name openclaw-mt-ssm-role \
+    --role-name ${PROJECT_NAME}-ssm-role \
     --policy-name build-permissions \
     --policy-document "{
       \"Version\": \"2012-10-17\",
@@ -84,7 +79,7 @@ else
     --subnet-id "$SUBNET_ID" \
     --security-group-ids "$ECS_SG" \
     --iam-instance-profile Name="$SSM_PROFILE" \
-    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=openclaw-mt-build}]' \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${PROJECT_NAME}-build}]" \
     --no-associate-public-ip-address \
     --query 'Instances[0].InstanceId' --output text \
     --region "$REGION")
@@ -155,7 +150,7 @@ fi
 # Full deploy: parse tokens from build output → write to DynamoDB
 # --skip-build: preserve existing gateway_token, only reset status
 echo "[7/8] Cleaning users table + initializing slots..."
-python3 - "$SLOTS_TABLE" "$USERS_TABLE" "$REGION" "$SLOT_COUNT" "$SKIP_BUILD" "$TOKENS_OUTPUT" << 'PYEOF'
+python3 - "$SLOTS_TABLE" "$USERS_TABLE" "$REGION" "$SLOT_COUNT" "$SKIP_BUILD" "$TOKENS_OUTPUT" "$PROJECT_NAME" << 'PYEOF'
 import sys, boto3, re, secrets
 from datetime import datetime, timezone
 
@@ -165,6 +160,7 @@ region = sys.argv[3]
 slot_count = int(sys.argv[4])
 skip_build = sys.argv[5] == "true"
 build_output = sys.argv[6] if len(sys.argv) > 6 else ""
+project_name = sys.argv[7] if len(sys.argv) > 7 else "mt-openclaw-hermes-ecs"
 
 ddb = boto3.resource("dynamodb", region_name=region)
 now = datetime.now(timezone.utc).isoformat()
@@ -214,7 +210,7 @@ for i in range(1, slot_count + 1):
         token = tokens.get(slot_id, secrets.token_hex(16))
         slots_table.put_item(Item={
             "slot_id": slot_id, "status": "available", "gateway_token": token,
-            "task_private_ip": "", "ecs_service_name": f"openclaw-mt-{slot_id}",
+            "task_private_ip": "", "ecs_service_name": f"{project_name}-{slot_id}",
             "assigned_username": "", "assigned_at": "", "created_at": now,
         })
         print(f"  {slot_id}: token={token[:12]}...")
@@ -225,11 +221,12 @@ PYEOF
 # ── Step 8: Restart ECS services ──
 echo "[8/8] Restarting services..."
 for i in $(seq -w 1 "$SLOT_COUNT"); do
-  # OpenClaw services
   aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-slot-${i}" \
     --force-new-deployment --region "$REGION" --no-cli-pager \
     --query 'service.serviceName' --output text 2>/dev/null || true
-  # Hermes services
+done
+# Restart Hermes services
+for i in $(seq -w 1 "$SLOT_COUNT"); do
   aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-hermes-slot-${i}" \
     --force-new-deployment --region "$REGION" --no-cli-pager \
     --query 'service.serviceName' --output text 2>/dev/null || true

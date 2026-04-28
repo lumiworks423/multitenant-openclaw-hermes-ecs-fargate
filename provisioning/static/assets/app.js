@@ -56,25 +56,30 @@ function renderDashboard() {
   if (inst) {
     instanceHtml = `
       <div class="instance-card">
-        <p class="status">● Instance Running</p>
-        <p style="margin-top:12px"><strong>Slot:</strong> ${inst.slot_id}</p>
-
-        <p style="margin-top:12px"><strong>🤖 OpenClaw (Control UI):</strong></p>
+        <p style="color:#2ecc71;font-weight:600;font-size:1.05rem">🦞 OpenClaw Agent</p>
+        <p style="margin-top:10px"><strong>Slot:</strong> ${inst.slot_id}</p>
+        <p style="margin-top:8px"><strong>Control UI:</strong></p>
         <p><a href="${inst.access_url}" target="_blank">${inst.access_url}</a></p>
-
-        <p style="margin-top:12px"><strong>🧠 Hermes (Open WebUI):</strong></p>
-        <p><a href="${inst.openwebui_url}" target="_blank">${inst.openwebui_url}</a></p>
-
-        <p style="margin-top:8px"><strong>Gateway Token (OpenClaw):</strong></p>
+        <p style="margin-top:8px"><strong>Gateway Token:</strong></p>
         <div class="token-box">${inst.gateway_token}</div>
-        <p style="margin-top:16px;color:#888;font-size:0.85rem">
-          <strong>OpenClaw:</strong> Open the Control UI link → chat with your AI agent. To connect Feishu: tell the agent "帮我连接飞书".<br>
-          <strong>Hermes:</strong> Open the Open WebUI link → select hermes-agent from the model dropdown.
+        <p style="margin-top:12px;color:#888;font-size:0.85rem">
+          打开 Control UI 链接 → 与 AI Agent 对话。<br>
+          飞书连接：告诉 Agent "帮我连接飞书" 并按指引操作。
+        </p>
+      </div>
+      <div class="instance-card" style="border-color:#f39c12;margin-top:12px">
+        <p style="color:#f39c12;font-weight:600;font-size:1.05rem">🤖 Hermes Agent</p>
+        <p style="margin-top:10px"><strong>Slot:</strong> ${inst.slot_id}</p>
+        <p style="margin-top:8px"><strong>ECS Service:</strong></p>
+        <div class="token-box">openclaw-mt-hermes-${inst.slot_id}</div>
+        <p style="margin-top:12px;color:#888;font-size:0.85rem">
+          Hermes 为纯后端服务，通过飞书机器人与用户交互。<br>
+          飞书连接：运行 <code style="background:#222;padding:2px 6px;border-radius:3px">bash scripts/configure-feishu-hermes.sh</code>
         </p>
       </div>`;
   } else {
     instanceHtml = `
-      <button id="assignBtn">🚀 Get My AI Agent Instances</button>
+      <button id="assignBtn">🚀 Get My Instance</button>
       <div id="assignError" class="error hidden" style="margin-top:12px"></div>`;
   }
 
@@ -128,10 +133,11 @@ async function loadSlots() {
         <td><span class="badge badge-${s.status}">${s.status}</span></td>
         <td>${s.assigned_username || '-'}</td>
         <td style="font-size:0.75rem">${s.gateway_token ? s.gateway_token.substring(0, 12) + '...' : '-'}</td>
+        <td style="font-size:0.75rem">openclaw-mt-hermes-${s.slot_id}</td>
       </tr>`).join('');
     $('#adminContent').innerHTML = `
       <table class="admin-table">
-        <tr><th>Slot</th><th>Status</th><th>User</th><th>Token</th></tr>
+        <tr><th>Slot</th><th>Status</th><th>User</th><th>Token</th><th>Hermes</th></tr>
         ${rows}
       </table>
       <p style="margin-top:12px;color:#888;font-size:0.85rem">

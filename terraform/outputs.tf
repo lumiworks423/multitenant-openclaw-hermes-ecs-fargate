@@ -60,22 +60,7 @@ output "efs_access_point_ids" {
   value       = { for i, id in local.slot_ids : id => aws_efs_access_point.slot[i].id }
 }
 
-output "efs_hermes_access_point_ids" {
-  description = "Map of slot_id → Hermes EFS Access Point ID"
-  value       = { for i, id in local.slot_ids : id => aws_efs_access_point.hermes[i].id }
-}
-
-output "efs_openwebui_access_point_ids" {
-  description = "Map of slot_id → Open WebUI EFS Access Point ID"
-  value       = { for i, id in local.slot_ids : id => aws_efs_access_point.openwebui[i].id }
-}
-
-output "slot_urls" {
-  description = "Map of slot_id → {openclaw_url, openwebui_url}"
-  value = {
-    for i, id in local.slot_ids : id => {
-      openclaw_url  = "https://${aws_cloudfront_distribution.main.domain_name}/i/${id}"
-      openwebui_url = "https://${aws_cloudfront_distribution.main.domain_name}/h/${id}"
-    }
-  }
+output "project_name" {
+  description = "Project name prefix for all resources"
+  value       = var.project_name
 }

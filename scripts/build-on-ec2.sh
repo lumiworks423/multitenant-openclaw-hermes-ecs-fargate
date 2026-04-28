@@ -132,62 +132,38 @@ EOFCONFIG
   echo "${SLOT_ID}:token=${TOKEN}"
 done
 
-# --- Step 5: Write Hermes + Open WebUI configs per slot ---
-echo ""
-echo "--- Step 5: Write Hermes configs ---"
-
-HERMES_API_KEY="${HERMES_API_KEY:-hermes-openwebui-2026}"
-
+# --- Hermes config ---
 for i in $(seq 1 "$SLOT_COUNT"); do
   SLOT_ID=$(printf "slot-%02d" "$i")
   HERMES_DIR="/mnt/efs/tenant-${SLOT_ID}/hermes"
-  WEBUI_DIR="/mnt/efs/tenant-${SLOT_ID}/openwebui"
-  mkdir -p "${HERMES_DIR}" "${WEBUI_DIR}"
+  mkdir -p "${HERMES_DIR}"
 
-  # Hermes config.yaml — Bedrock native, no LiteLLM
-  if [ ! -f "${HERMES_DIR}/config.yaml" ]; then
-    cat > "${HERMES_DIR}/config.yaml" <<HERMESCONFIG
+  # config.yaml — Bedrock 直连配置
+  cat > "${HERMES_DIR}/config.yaml" <<EOFYAML
 model:
-  provider: "bedrock"
-  default: "us.anthropic.claude-sonnet-4-6"
+  default: global.anthropic.claude-sonnet-4-20250514-v1:0
+  provider: bedrock
 bedrock:
-  region: "${REGION}"
-terminal:
-  backend: "local"
-  cwd: "/root/.hermes/workspace"
-  timeout: 180
-agent:
-  max_turns: 60
-memory:
-  memory_enabled: true
-  user_profile_enabled: true
-display:
-  streaming: true
-HERMESCONFIG
-    echo "  ${SLOT_ID}: hermes config.yaml written"
-  else
-    echo "  ${SLOT_ID}: hermes config.yaml exists, skipping"
-  fi
+  region: ${REGION}
+EOFYAML
 
-  # Hermes .env — API server key + feishu placeholders (empty)
-  if [ ! -f "${HERMES_DIR}/.env" ]; then
-    cat > "${HERMES_DIR}/.env" <<HERMESENV
+  # .env — API Server + 飞书占位
+  # 复用 OpenClaw 的 gateway token 作为 API_SERVER_KEY
+  OC_TOKEN=$(python3 -c "import json; print(json.load(open('/mnt/efs/tenant-${SLOT_ID}/openclaw/openclaw.json'))['gateway']['auth']['token'])" 2>/dev/null || openssl rand -hex 16)
+
+  cat > "${HERMES_DIR}/.env" <<EOFENV
 API_SERVER_ENABLED=true
-API_SERVER_KEY=${HERMES_API_KEY}
+API_SERVER_KEY=${OC_TOKEN}
 GATEWAY_ALLOW_ALL_USERS=true
-# Feishu — fill in during workshop feishu chapter
-# FEISHU_APP_ID=
-# FEISHU_APP_SECRET=
+# --- Feishu (uncomment and fill to enable) ---
+# FEISHU_APP_ID=cli_xxx
+# FEISHU_APP_SECRET=secret_xxx
 # FEISHU_DOMAIN=feishu
 # FEISHU_CONNECTION_MODE=websocket
-HERMESENV
-    echo "  ${SLOT_ID}: hermes .env written"
-  else
-    echo "  ${SLOT_ID}: hermes .env exists, skipping"
-  fi
+EOFENV
 
-  # Open WebUI dir just needs to exist (SQLite created on first start)
-  echo "  ${SLOT_ID}: openwebui dir ready"
+  chown -R 10000:10000 "${HERMES_DIR}"
+  echo "  ${SLOT_ID}: Hermes config written"
 done
 
 umount /mnt/efs

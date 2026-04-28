@@ -1,6 +1,6 @@
 #!/bin/bash
-# configure-feishu-hermes.sh — Configure Feishu for a Hermes slot
-# Updates EFS .env with Feishu credentials and restarts the Hermes ECS Task
+# configure-feishu-hermes.sh — Configure Feishu credentials for a Hermes slot
+# Updates EFS .env with Feishu credentials and restarts the Hermes ECS Service
 #
 # Usage: bash configure-feishu-hermes.sh
 # Requires: AWS CLI, jq
@@ -20,18 +20,20 @@ if [ -z "$SLOT_ID" ] || [ -z "$FEISHU_APP_ID" ] || [ -z "$FEISHU_APP_SECRET" ]; 
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"
-TF_DIR="$(cd "${SCRIPT_DIR}/../terraform"; pwd)"
 
-# ── Read terraform outputs ──
+# ── Read parameters from SSM Parameter Store ──
 echo ""
-echo "[1/5] Reading terraform outputs..."
-REGION="us-east-1"
-EFS_ID=$(cd "$TF_DIR" && terraform output -raw efs_file_system_id)
-SUBNET_ID=$(cd "$TF_DIR" && terraform output -json private_subnet_ids | jq -r '.[0]')
-ECS_SG=$(cd "$TF_DIR" && terraform output -raw ecs_sg_id)
-SSM_PROFILE=$(cd "$TF_DIR" && terraform output -raw ssm_instance_profile_name)
-ECS_CLUSTER=$(cd "$TF_DIR" && terraform output -raw ecs_cluster_name)
-PROJECT_NAME=$(cd "$TF_DIR" && terraform output -raw project_name 2>/dev/null || echo "openclaw-mt")
+echo "[1/5] Reading parameters from SSM..."
+PROJECT_NAME="${PROJECT_NAME:-mt-openclaw-hermes-ecs}"
+REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || echo "${AWS_REGION:-us-east-1}")
+
+ssm_get() { aws ssm get-parameter --name "/${PROJECT_NAME}/$1" --query 'Parameter.Value' --output text --region "$REGION"; }
+
+EFS_ID=$(ssm_get efs-id)
+SUBNET_ID=$(ssm_get private-subnet-id)
+ECS_SG=$(ssm_get ecs-sg-id)
+SSM_PROFILE=$(ssm_get ssm-instance-profile)
+ECS_CLUSTER=$(ssm_get ecs-cluster-name)
 
 echo "  EFS=$EFS_ID Cluster=$ECS_CLUSTER Slot=$SLOT_ID"
 
@@ -62,7 +64,7 @@ for i in $(seq 1 20); do
   sleep 10
 done
 if [ "$STATUS" != "Online" ]; then
-  echo "ERROR: SSM not online. Terminating."
+  echo "ERROR: SSM not online after 200 seconds. Terminating instance."
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
   exit 1
 fi
@@ -77,7 +79,7 @@ CMD_ID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
     "mkdir -p /mnt/efs",
     "mount -t nfs4 -o nfsvers=4.1 '"${EFS_ID}"'.efs.'"${REGION}"'.amazonaws.com:/ /mnt/efs",
     "HERMES_DIR=/mnt/efs/tenant-'"${SLOT_ID}"'/hermes",
-    "if [ ! -f $HERMES_DIR/.env ]; then echo \"ERROR: .env not found\"; umount /mnt/efs; exit 1; fi",
+    "if [ ! -f $HERMES_DIR/.env ]; then echo \"ERROR: .env not found at $HERMES_DIR/.env — run deploy.sh first\"; umount /mnt/efs; exit 1; fi",
     "sed -i \"s|^# FEISHU_APP_ID=.*|FEISHU_APP_ID='"${FEISHU_APP_ID}"'|\" $HERMES_DIR/.env",
     "sed -i \"s|^# FEISHU_APP_SECRET=.*|FEISHU_APP_SECRET='"${FEISHU_APP_SECRET}"'|\" $HERMES_DIR/.env",
     "sed -i \"s|^# FEISHU_DOMAIN=.*|FEISHU_DOMAIN=feishu|\" $HERMES_DIR/.env",
@@ -92,14 +94,22 @@ for i in $(seq 1 30); do
   S=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
     --query 'Status' --output text --region "$REGION" 2>/dev/null || echo "Pending")
   [ "$S" = "Success" ] && break
-  [ "$S" = "Failed" ] && { echo "ERROR: Update failed"; break; }
+  [ "$S" = "Failed" ] && {
+    echo "ERROR: Failed to update .env"
+    aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+      --query 'StandardOutputContent' --output text --region "$REGION"
+    aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION"
+    exit 1
+  }
   sleep 5
 done
 
 aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
   --query 'StandardOutputContent' --output text --region "$REGION"
 
-# Terminate temp EC2
+# ── Terminate temp EC2 ──
+echo ""
+echo "  Terminating temp EC2..."
 aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION" \
   --query 'TerminatingInstances[0].CurrentState.Name' --output text
 

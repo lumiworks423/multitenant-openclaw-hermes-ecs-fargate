@@ -14,14 +14,12 @@ class SlotInfo(BaseModel):
     status: str
     gateway_token: str = ""
     access_url: str = ""
-    openwebui_url: str = ""
     assigned_username: str = ""
 
 
 class AssignResponse(BaseModel):
     slot_id: str
     access_url: str
-    openwebui_url: str
     gateway_token: str
 
 
@@ -47,8 +45,7 @@ def assign_instance(user: dict = Depends(get_current_user)):
         if slot:
             return AssignResponse(
                 slot_id=slot["slot_id"],
-                access_url=_build_openclaw_url(slot),
-                openwebui_url=_build_openwebui_url(slot),
+                access_url=_build_url(slot),
                 gateway_token=slot.get("gateway_token", ""),
             )
 
@@ -66,8 +63,7 @@ def assign_instance(user: dict = Depends(get_current_user)):
 
     return AssignResponse(
         slot_id=slot["slot_id"],
-        access_url=_build_openclaw_url(slot),
-        openwebui_url=_build_openwebui_url(slot),
+        access_url=_build_url(slot),
         gateway_token=slot.get("gateway_token", ""),
     )
 
@@ -125,8 +121,7 @@ def batch_create(req: BatchCreateRequest, admin: dict = Depends(require_admin)):
                 "username": username,
                 "password": password,
                 "slot_id": slot["slot_id"],
-                "access_url": _build_openclaw_url(slot),
-                "openwebui_url": _build_openwebui_url(slot),
+                "access_url": _build_url(slot),
                 "gateway_token": slot.get("gateway_token", ""),
             })
         else:
@@ -135,7 +130,6 @@ def batch_create(req: BatchCreateRequest, admin: dict = Depends(require_admin)):
                 "password": password,
                 "slot_id": "",
                 "access_url": "",
-                "openwebui_url": "",
                 "gateway_token": "",
                 "error": "No available slots",
             })
@@ -153,8 +147,7 @@ def list_all_users(admin: dict = Depends(require_admin)):
             "username": u["username"],
             "role": u.get("role", "user"),
             "slot_id": u.get("slot_id", ""),
-            "access_url": _build_openclaw_url(slot) if slot else "",
-            "openwebui_url": _build_openwebui_url(slot) if slot else "",
+            "access_url": _build_url(slot) if slot else "",
             "created_at": u.get("created_at", ""),
         })
     return result
@@ -162,19 +155,12 @@ def list_all_users(admin: dict = Depends(require_admin)):
 
 # ── Helpers ──
 
-def _build_openclaw_url(slot: dict | None) -> str:
+def _build_url(slot: dict | None) -> str:
     if not slot:
         return ""
     token = slot.get("gateway_token", "")
     slot_id = slot["slot_id"]
     return f"https://{CLOUDFRONT_DOMAIN}/i/{slot_id}/?token={token}"
-
-
-def _build_openwebui_url(slot: dict | None) -> str:
-    if not slot:
-        return ""
-    slot_id = slot["slot_id"]
-    return f"https://{CLOUDFRONT_DOMAIN}/h/{slot_id}/"
 
 
 def _format_slot(slot: dict | None) -> SlotInfo:
@@ -184,7 +170,6 @@ def _format_slot(slot: dict | None) -> SlotInfo:
         slot_id=slot["slot_id"],
         status=slot.get("status", "unknown"),
         gateway_token=slot.get("gateway_token", ""),
-        access_url=_build_openclaw_url(slot),
-        openwebui_url=_build_openwebui_url(slot),
+        access_url=_build_url(slot),
         assigned_username=slot.get("assigned_username", ""),
     )

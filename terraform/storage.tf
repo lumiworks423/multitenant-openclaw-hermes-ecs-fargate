@@ -40,6 +40,29 @@ resource "aws_efs_access_point" "slot" {
   tags = { Name = "${var.project_name}-ap-${local.slot_ids[count.index]}" }
 }
 
+# Per-tenant Hermes Access Points
+# Each AP roots at /tenant-{slot_id}/hermes with uid/gid 10000 (Hermes container default user)
+resource "aws_efs_access_point" "hermes" {
+  count          = var.slot_count
+  file_system_id = aws_efs_file_system.main.id
+
+  root_directory {
+    path = "/tenant-${local.slot_ids[count.index]}/hermes"
+    creation_info {
+      owner_gid   = 10000
+      owner_uid   = 10000
+      permissions = "755"
+    }
+  }
+
+  posix_user {
+    gid = 10000
+    uid = 10000
+  }
+
+  tags = { Name = "${var.project_name}-hermes-ap-${local.slot_ids[count.index]}" }
+}
+
 # Shared Access Point for Provisioning (read templates, etc)
 resource "aws_efs_access_point" "shared" {
   file_system_id = aws_efs_file_system.main.id
