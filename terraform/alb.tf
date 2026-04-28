@@ -18,7 +18,7 @@ resource "aws_lb" "main" {
 # Per-slot Target Group → OpenClaw :18789
 resource "aws_lb_target_group" "openclaw" {
   count       = var.slot_count
-  name        = "${var.project_name}-${local.slot_ids[count.index]}-tg"
+  name        = "oc-${local.slot_ids[count.index]}-tg"
   port        = 18789
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
