@@ -25,7 +25,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"
 echo ""
 echo "[1/5] Reading parameters from SSM..."
 PROJECT_NAME="${PROJECT_NAME:-mt-openclaw-hermes-ecs}"
-REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || echo "${AWS_REGION:-us-east-1}")
+REGION=$(TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null) && curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null)
+REGION="${REGION:-${AWS_REGION:-us-east-1}}"
 
 ssm_get() { aws ssm get-parameter --name "/${PROJECT_NAME}/$1" --query 'Parameter.Value' --output text --region "$REGION"; }
 

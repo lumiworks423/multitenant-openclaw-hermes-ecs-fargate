@@ -93,7 +93,7 @@ resource "aws_ecs_service" "openclaw" {
   name             = "${var.project_name}-${local.slot_ids[count.index]}"
   cluster          = aws_ecs_cluster.main.id
   task_definition  = aws_ecs_task_definition.openclaw[count.index].arn
-  desired_count    = 1
+  desired_count    = 0
   launch_type      = "FARGATE"
   platform_version = "LATEST"
 
@@ -116,6 +116,10 @@ resource "aws_ecs_service" "openclaw" {
   }
 
   depends_on = [aws_efs_mount_target.main, aws_lb_listener.main]
+
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
 }
 
 # ============================================================
@@ -260,7 +264,7 @@ resource "aws_ecs_service" "hermes" {
   name             = "${var.project_name}-hermes-${local.slot_ids[count.index]}"
   cluster          = aws_ecs_cluster.main.id
   task_definition  = aws_ecs_task_definition.hermes[count.index].arn
-  desired_count    = 1
+  desired_count    = 0
   launch_type      = "FARGATE"
   platform_version = "LATEST"
 
@@ -273,4 +277,8 @@ resource "aws_ecs_service" "hermes" {
   }
 
   depends_on = [aws_efs_mount_target.main]
+
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
 }

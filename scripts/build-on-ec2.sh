@@ -51,20 +51,23 @@ for i in $(seq 1 "$SLOT_COUNT"); do
   SLOT_DIR="/mnt/efs/tenant-${SLOT_ID}/openclaw"
   mkdir -p "${SLOT_DIR}/workspace"
 
-  # Preserve existing token — never regenerate once set
-  # OpenClaw detects file modification (mtime) and triggers drift protection
-  # even if the token value is the same. So we only write the file if it doesn't exist.
+  # Clean up OpenClaw drift protection artifacts and default files before writing config
+  # These files cause OpenClaw to ignore new config on startup
+  rm -f "${SLOT_DIR}/openclaw.json.last-good" 2>/dev/null || true
+  rm -rf "${SLOT_DIR}/.last-good" "${SLOT_DIR}/.clobbered" 2>/dev/null || true
+  rm -rf "${SLOT_DIR}/agents" "${SLOT_DIR}/canvas" "${SLOT_DIR}/identity" "${SLOT_DIR}/logs" "${SLOT_DIR}/tasks" 2>/dev/null || true
+  rm -f "${SLOT_DIR}/update-check.json" 2>/dev/null || true
+
+  # Preserve existing token if available, otherwise generate new one
+  TOKEN=""
   if [ -f "${SLOT_DIR}/openclaw.json" ]; then
     TOKEN=$(python3 -c "import json; print(json.load(open('${SLOT_DIR}/openclaw.json'))['gateway']['auth']['token'])" 2>/dev/null || echo "")
-    if [ -n "$TOKEN" ]; then
-      echo "${SLOT_ID}:token=${TOKEN}"
-      echo "  ${SLOT_ID}: config exists, preserving token (not overwriting)"
-      continue
-    fi
+  fi
+  if [ -z "$TOKEN" ]; then
+    TOKEN=$(openssl rand -hex 16)
   fi
 
-  # First time only: generate token and write config
-  TOKEN=$(openssl rand -hex 16)
+  # Always write complete config (overwrite any default/drift config)
 
   cat > "${SLOT_DIR}/openclaw.json" <<EOFCONFIG
 {
@@ -130,6 +133,7 @@ EOFCONFIG
 
   chown -R 1000:1000 "${SLOT_DIR}"
   echo "${SLOT_ID}:token=${TOKEN}"
+  echo "  ${SLOT_ID}: openclaw bind=$(python3 -c "import json; print(json.load(open('${SLOT_DIR}/openclaw.json')).get('gateway',{}).get('bind','MISSING'))" 2>/dev/null || echo PARSE_ERROR)"
 done
 
 # --- Hermes config ---

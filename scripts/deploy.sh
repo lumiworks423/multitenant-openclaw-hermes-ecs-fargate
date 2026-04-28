@@ -23,7 +23,8 @@ $SKIP_BUILD && echo "  (--skip-build: skipping image build)"
 # ── Step 1: Read parameters from SSM Parameter Store ──
 echo "[1/8] Reading parameters from SSM..."
 PROJECT_NAME="${PROJECT_NAME:-mt-openclaw-hermes-ecs}"
-REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || echo "${AWS_REGION:-us-east-1}")
+REGION=$(TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null) && curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null)
+REGION="${REGION:-${AWS_REGION:-us-east-1}}"
 
 ssm_get() { aws ssm get-parameter --name "/${PROJECT_NAME}/$1" --query 'Parameter.Value' --output text --region "$REGION"; }
 
@@ -140,6 +141,10 @@ else
   TOKENS_OUTPUT=$(aws ssm get-command-invocation --command-id "$CMD2" --instance-id "$INSTANCE_ID" \
     --query 'StandardOutputContent' --output text --region "$REGION" 2>/dev/null || echo "")
 
+  # Show build output (config verification)
+  echo "  5b: Build output:"
+  echo "$TOKENS_OUTPUT" | grep -E "token=|bind=|Hermes config" || true
+
   # ── Step 6: Terminate EC2 ──
   echo "[6/8] Terminating build EC2..."
   aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" --region "$REGION" \
@@ -150,7 +155,7 @@ fi
 # Full deploy: parse tokens from build output → write to DynamoDB
 # --skip-build: preserve existing gateway_token, only reset status
 echo "[7/8] Cleaning users table + initializing slots..."
-python3 - "$SLOTS_TABLE" "$USERS_TABLE" "$REGION" "$SLOT_COUNT" "$SKIP_BUILD" "$TOKENS_OUTPUT" "$PROJECT_NAME" << 'PYEOF'
+PYTHONWARNINGS=ignore python3 - "$SLOTS_TABLE" "$USERS_TABLE" "$REGION" "$SLOT_COUNT" "$SKIP_BUILD" "$TOKENS_OUTPUT" "$PROJECT_NAME" << 'PYEOF'
 import sys, boto3, re, secrets
 from datetime import datetime, timezone
 
@@ -222,13 +227,13 @@ PYEOF
 echo "[8/8] Restarting services..."
 for i in $(seq -w 1 "$SLOT_COUNT"); do
   aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-slot-${i}" \
-    --force-new-deployment --region "$REGION" --no-cli-pager \
+    --desired-count 1 --force-new-deployment --region "$REGION" --no-cli-pager \
     --query 'service.serviceName' --output text 2>/dev/null || true
 done
-# Restart Hermes services
+# Scale up + restart Hermes services
 for i in $(seq -w 1 "$SLOT_COUNT"); do
   aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-hermes-slot-${i}" \
-    --force-new-deployment --region "$REGION" --no-cli-pager \
+    --desired-count 1 --force-new-deployment --region "$REGION" --no-cli-pager \
     --query 'service.serviceName' --output text 2>/dev/null || true
 done
 aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-provisioning" \
@@ -239,4 +244,4 @@ echo "  Services restarting. Wait 2-3 min for tasks to stabilize."
 echo ""
 echo "=== Deploy Complete ==="
 echo "Workshop URL: https://${CF_DOMAIN}"
-echo "Admin login: admin / (password from terraform.tfvars)"
+echo "Admin login: admin / workshop-2026"

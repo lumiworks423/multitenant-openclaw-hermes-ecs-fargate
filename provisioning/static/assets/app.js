@@ -133,11 +133,10 @@ async function loadSlots() {
         <td><span class="badge badge-${s.status}">${s.status}</span></td>
         <td>${s.assigned_username || '-'}</td>
         <td style="font-size:0.75rem">${s.gateway_token ? s.gateway_token.substring(0, 12) + '...' : '-'}</td>
-        <td style="font-size:0.75rem">openclaw-mt-hermes-${s.slot_id}</td>
       </tr>`).join('');
     $('#adminContent').innerHTML = `
       <table class="admin-table">
-        <tr><th>Slot</th><th>Status</th><th>User</th><th>Token</th><th>Hermes</th></tr>
+        <tr><th>Slot</th><th>Status</th><th>User</th><th>Token</th></tr>
         ${rows}
       </table>
       <p style="margin-top:12px;color:#888;font-size:0.85rem">
