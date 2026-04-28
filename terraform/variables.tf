@@ -19,7 +19,7 @@ variable "vpc_cidr" {
 variable "slot_count" {
   description = "Number of pre-provisioned OpenClaw instances (warm pool)"
   type        = number
-  default     = 5
+  default     = 2
 }
 
 variable "openclaw_image" {

@@ -79,10 +79,10 @@ for i in $(seq 1 "$SLOT_COUNT"); do
         "auth": "aws-sdk",
         "models": [
           {
-            "id": "global.anthropic.claude-sonnet-4-20250514-v1:0",
-            "name": "Claude Sonnet 4",
-            "input": ["text", "image"],
-            "contextWindow": 200000,
+            "id": "deepseek.v3.2",
+            "name": "DeepSeek V3.2",
+            "input": ["text"],
+            "contextWindow": 128000,
             "maxTokens": 8192
           }
         ]
@@ -94,7 +94,7 @@ for i in $(seq 1 "$SLOT_COUNT"); do
       "maxConcurrent": 4,
       "workspace": "/home/node/.openclaw/workspace",
       "model": {
-        "primary": "amazon-bedrock/global.anthropic.claude-sonnet-4-20250514-v1:0"
+        "primary": "amazon-bedrock/deepseek.v3.2"
       }
     }
   },
@@ -145,7 +145,7 @@ for i in $(seq 1 "$SLOT_COUNT"); do
   # config.yaml — Bedrock 直连配置
   cat > "${HERMES_DIR}/config.yaml" <<EOFYAML
 model:
-  default: global.anthropic.claude-sonnet-4-20250514-v1:0
+  default: deepseek.v3.2
   provider: bedrock
 bedrock:
   region: ${REGION}
