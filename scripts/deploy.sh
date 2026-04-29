@@ -225,14 +225,18 @@ PYEOF
 
 # ── Step 8: Restart ECS services ──
 echo "[8/8] Restarting services..."
-for i in $(seq -w 1 "$SLOT_COUNT"); do
-  aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-slot-${i}" \
+for i in $(seq 1 "$SLOT_COUNT"); do
+  SLOT=$(printf "slot-%02d" "$i")
+  echo "  Scaling up ${PROJECT_NAME}-${SLOT}..."
+  aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-${SLOT}" \
     --desired-count 1 --force-new-deployment --region "$REGION" --no-cli-pager \
     --query 'service.serviceName' --output text 2>/dev/null || true
 done
 # Scale up + restart Hermes services
-for i in $(seq -w 1 "$SLOT_COUNT"); do
-  aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-hermes-slot-${i}" \
+for i in $(seq 1 "$SLOT_COUNT"); do
+  SLOT=$(printf "slot-%02d" "$i")
+  echo "  Scaling up ${PROJECT_NAME}-hermes-${SLOT}..."
+  aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-hermes-${SLOT}" \
     --desired-count 1 --force-new-deployment --region "$REGION" --no-cli-pager \
     --query 'service.serviceName' --output text 2>/dev/null || true
 done

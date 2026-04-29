@@ -18,6 +18,7 @@ __pycache__/
 
 # macOS
 .DS_Store
+._*
 
 # Build artifacts
 *.tar.gz
