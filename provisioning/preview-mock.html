@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenClaw + Hermes Workshop — UI Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; }
+    .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+    .logo { text-align: center; margin-bottom: 40px; }
+    .logo h1 { font-size: 2rem; color: #fff; }
+    .logo p { color: #888; margin-top: 8px; }
+    .card { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 32px; margin-bottom: 20px; }
+    .card h2 { margin-bottom: 20px; font-size: 1.3rem; }
+    input { width: 100%; padding: 12px 16px; background: #0a0a0a; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 1rem; margin-bottom: 12px; outline: none; }
+    input:focus { border-color: #4a9eff; }
+    button { width: 100%; padding: 12px; background: #4a9eff; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600; }
+    button:hover { background: #3a8eef; }
+    button:disabled { background: #333; cursor: not-allowed; }
+    .btn-secondary { background: #333; margin-top: 8px; }
+    .btn-secondary:hover { background: #444; }
+    .btn-sso { display: block; width: 100%; padding: 12px; background: #f39c12; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600; text-align: center; text-decoration: none; margin-bottom: 12px; }
+    .btn-sso:hover { background: #e67e22; }
+    .divider { text-align: center; color: #555; margin-bottom: 12px; font-size: 0.85rem; }
+    .error { color: #e74c3c; margin-bottom: 12px; font-size: 0.9rem; }
+    .success { color: #2ecc71; margin-bottom: 12px; font-size: 0.9rem; }
+    .instance-card { background: #111; border: 1px solid #2ecc71; border-radius: 8px; padding: 20px; margin-top: 16px; }
+    .instance-card a { color: #4a9eff; text-decoration: none; word-break: break-all; }
+    .instance-card a:hover { text-decoration: underline; }
+    .token-box { background: #0a0a0a; border: 1px solid #333; border-radius: 4px; padding: 8px 12px; font-family: monospace; font-size: 0.85rem; margin-top: 8px; word-break: break-all; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab { padding: 8px 16px; border-radius: 6px; cursor: pointer; background: #222; border: 1px solid #333; color: #888; }
+    .tab.active { background: #4a9eff; color: #fff; border-color: #4a9eff; }
+    .admin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .admin-table th, .admin-table td { padding: 8px; text-align: left; border-bottom: 1px solid #222; }
+    .admin-table th { color: #888; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
+    .badge-available { background: #1a3a1a; color: #2ecc71; }
+    .badge-assigned { background: #1a2a3a; color: #4a9eff; }
+    .hidden { display: none; }
+    .link-row { margin-top: 12px; text-align: center; }
+    .link-row a { color: #4a9eff; text-decoration: none; cursor: pointer; }
+
+    /* Preview controls */
+    .preview-bar { position: fixed; top: 0; left: 0; right: 0; background: #1a1a2e; border-bottom: 2px solid #4a9eff; padding: 10px 20px; z-index: 999; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .preview-bar button { width: auto; padding: 6px 14px; font-size: 0.8rem; border-radius: 4px; }
+    .preview-bar button.active-view { background: #2ecc71; }
+    .preview-bar span { color: #888; font-size: 0.8rem; margin-left: auto; }
+    body { padding-top: 50px; }
+
+    /* Cognito hosted UI mock */
+    .cognito-page { background: #fff; color: #333; min-height: 80vh; border-radius: 12px; padding: 40px; max-width: 400px; margin: 0 auto; }
+    .cognito-page h2 { color: #232f3e; margin-bottom: 24px; text-align: center; }
+    .cognito-page input { background: #fff; color: #333; border: 1px solid #ccc; }
+    .cognito-page button { background: #ff9900; }
+    .cognito-page button:hover { background: #ec7211; }
+    .cognito-page .link-row a { color: #0073bb; }
+    .cognito-page .subtitle { text-align: center; color: #666; font-size: 0.85rem; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="preview-bar">
+    <button onclick="showView('login')" id="btn-login">Login (with SSO)</button>
+    <button onclick="showView('cognito')" id="btn-cognito">Cognito Hosted UI</button>
+    <button onclick="showView('register')" id="btn-register">Register</button>
+    <button onclick="showView('user-no-slot')" id="btn-user-no-slot">User (no slot)</button>
+    <button onclick="showView('user-assigned')" id="btn-user-assigned">User (assigned)</button>
+    <button onclick="showView('admin')" id="btn-admin">Admin Panel</button>
+    <span>UI Preview — click to switch views</span>
+  </div>
+
+  <div class="container">
+    <div class="logo">
+      <h1>&#x1F99E; OpenClaw + Hermes Workshop</h1>
+      <p>Your personal AI assistants on AWS</p>
+    </div>
+    <div id="app"></div>
+  </div>
+
+  <script>
+    function showView(view) {
+      document.querySelectorAll('.preview-bar button').forEach(b => b.classList.remove('active-view'));
+      document.getElementById('btn-' + view).classList.add('active-view');
+
+      const app = document.getElementById('app');
+
+      switch(view) {
+        case 'login':
+          app.innerHTML = `
+            <div class="card">
+              <h2>Login</h2>
+              <div class="error hidden"></div>
+              <a class="btn-sso" onclick="showView('cognito')">SSO Login</a>
+              <div class="divider">or login with username/password</div>
+              <input placeholder="Username" autocomplete="username" />
+              <input type="password" placeholder="Password" autocomplete="current-password" />
+              <button>Login</button>
+              <div class="link-row"><a onclick="showView('register')">Don't have an account? Register</a></div>
+            </div>`;
+          break;
+
+        case 'cognito':
+          app.innerHTML = `
+            <div class="cognito-page">
+              <h2>Sign in</h2>
+              <p class="subtitle">mt-openclaw-hermes-ecs.auth.ap-south-1.amazoncognito.com</p>
+              <input placeholder="Email" type="email" value="zhang.wei@company.com" style="margin-bottom:12px" />
+              <input type="password" placeholder="Password" value="********" style="margin-bottom:16px" />
+              <button onclick="showView('user-assigned')" style="margin-bottom:12px">Sign in</button>
+              <div class="link-row">
+                <a onclick="showView('cognito-signup')">No account? Sign up</a>
+              </div>
+              <div style="margin-top:20px;padding-top:16px;border-top:1px solid #eee;text-align:center">
+                <p style="color:#666;font-size:0.8rem;margin-bottom:8px">Or sign in with</p>
+                <div style="display:flex;gap:10px;justify-content:center">
+                  <button style="width:auto;padding:8px 20px;background:#4285f4;font-size:0.85rem">Google</button>
+                  <button style="width:auto;padding:8px 20px;background:#3370ff;font-size:0.85rem">Feishu</button>
+                </div>
+              </div>
+            </div>`;
+          break;
+
+        case 'register':
+          app.innerHTML = `
+            <div class="card">
+              <h2>Register</h2>
+              <div class="error hidden"></div>
+              <a class="btn-sso" onclick="showView('cognito')">SSO Login</a>
+              <div class="divider">or register with username/password</div>
+              <input placeholder="Choose a username" autocomplete="username" />
+              <input type="password" placeholder="Choose a password" autocomplete="new-password" />
+              <button>Register & Get Your Instance</button>
+              <div class="link-row"><a onclick="showView('login')">Already have an account? Login</a></div>
+            </div>`;
+          break;
+
+        case 'user-no-slot':
+          app.innerHTML = `
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <h2>Welcome, zhang.wei@company.com</h2>
+                <a style="color:#888;cursor:pointer;font-size:0.9rem" onclick="showView('login')">Logout</a>
+              </div>
+              <p style="color:#888;font-size:0.85rem;margin-bottom:16px">Logged in via SSO</p>
+              <button onclick="showView('user-assigned')">&#x1F680; Get My Instance</button>
+            </div>`;
+          break;
+
+        case 'user-assigned':
+          app.innerHTML = `
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <h2>Welcome, zhang.wei@company.com</h2>
+                <a style="color:#888;cursor:pointer;font-size:0.9rem" onclick="showView('login')">Logout</a>
+              </div>
+              <p style="color:#888;font-size:0.85rem;margin-bottom:8px">Logged in via SSO</p>
+              <div class="instance-card">
+                <p style="color:#2ecc71;font-weight:600;font-size:1.05rem">&#x1F99E; OpenClaw Agent</p>
+                <p style="margin-top:10px"><strong>Slot:</strong> slot-03</p>
+                <p style="margin-top:8px"><strong>Control UI:</strong></p>
+                <p><a href="#">https://d1a2b3c4.cloudfront.net/i/slot-03/?token=a8f3c2e91b...</a></p>
+                <p style="margin-top:8px"><strong>Gateway Token:</strong></p>
+                <div class="token-box">a8f3c2e91b4d6a7e0c3f5821d9e4b6a2</div>
+                <p style="margin-top:12px;color:#888;font-size:0.85rem">
+                  &#x6253;&#x5F00; Control UI &#x94FE;&#x63A5; &#x2192; &#x4E0E; AI Agent &#x5BF9;&#x8BDD;&#x3002;<br>
+                  &#x98DE;&#x4E66;&#x8FDE;&#x63A5;&#xFF1A;&#x544A;&#x8BC9; Agent &#x201C;&#x5E2E;&#x6211;&#x8FDE;&#x63A5;&#x98DE;&#x4E66;&#x201D; &#x5E76;&#x6309;&#x6307;&#x5F15;&#x64CD;&#x4F5C;&#x3002;
+                </p>
+              </div>
+              <div class="instance-card" style="border-color:#f39c12;margin-top:12px">
+                <p style="color:#f39c12;font-weight:600;font-size:1.05rem">&#x1F916; Hermes Agent</p>
+                <p style="margin-top:10px"><strong>Slot:</strong> slot-03</p>
+                <p style="margin-top:8px"><strong>ECS Service:</strong></p>
+                <div class="token-box">mt-openclaw-hermes-ecs-hermes-slot-03</div>
+                <p style="margin-top:12px;color:#888;font-size:0.85rem">
+                  Hermes &#x4E3A;&#x7EAF;&#x540E;&#x7AEF;&#x670D;&#x52A1;&#xFF0C;&#x901A;&#x8FC7;&#x98DE;&#x4E66;&#x673A;&#x5668;&#x4EBA;&#x4E0E;&#x7528;&#x6237;&#x4EA4;&#x4E92;&#x3002;<br>
+                  &#x98DE;&#x4E66;&#x8FDE;&#x63A5;&#xFF1A;&#x8FD0;&#x884C; <code style="background:#222;padding:2px 6px;border-radius:3px">bash scripts/configure-feishu-hermes.sh</code>
+                </p>
+              </div>
+            </div>`;
+          break;
+
+        case 'admin':
+          app.innerHTML = `
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <h2>Welcome, admin</h2>
+                <a style="color:#888;cursor:pointer;font-size:0.9rem" onclick="showView('login')">Logout</a>
+              </div>
+            </div>
+            <div class="card" style="margin-top:20px">
+              <h2>Admin Panel</h2>
+              <div class="tabs">
+                <div class="tab active" onclick="showAdminTab('slots')">Slots</div>
+                <div class="tab" onclick="showAdminTab('users')">Users</div>
+                <div class="tab" onclick="showAdminTab('batch')">Batch Create</div>
+              </div>
+              <div id="adminContent">
+                <table class="admin-table">
+                  <tr><th>Slot</th><th>Status</th><th>User</th><th>Token</th></tr>
+                  <tr>
+                    <td>slot-01</td>
+                    <td><span class="badge badge-assigned">assigned</span></td>
+                    <td>user-01</td>
+                    <td style="font-size:0.75rem">a8f3c2e91b4d...</td>
+                  </tr>
+                  <tr>
+                    <td>slot-02</td>
+                    <td><span class="badge badge-assigned">assigned</span></td>
+                    <td>li.ming@corp.cn</td>
+                    <td style="font-size:0.75rem">7e2b9d4f1c6a...</td>
+                  </tr>
+                  <tr>
+                    <td>slot-03</td>
+                    <td><span class="badge badge-assigned">assigned</span></td>
+                    <td>zhang.wei@company.com</td>
+                    <td style="font-size:0.75rem">c4d8a1f5e930...</td>
+                  </tr>
+                  <tr>
+                    <td>slot-04</td>
+                    <td><span class="badge badge-available">available</span></td>
+                    <td>-</td>
+                    <td style="font-size:0.75rem">f1a9b3c7d2e5...</td>
+                  </tr>
+                  <tr>
+                    <td>slot-05</td>
+                    <td><span class="badge badge-available">available</span></td>
+                    <td>-</td>
+                    <td style="font-size:0.75rem">b6e4c8a2f7d1...</td>
+                  </tr>
+                </table>
+                <p style="margin-top:12px;color:#888;font-size:0.85rem">2 available / 5 total</p>
+              </div>
+            </div>`;
+          break;
+      }
+    }
+
+    function showAdminTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      const content = document.getElementById('adminContent');
+
+      switch(tab) {
+        case 'slots':
+          content.innerHTML = `
+            <table class="admin-table">
+              <tr><th>Slot</th><th>Status</th><th>User</th><th>Token</th></tr>
+              <tr><td>slot-01</td><td><span class="badge badge-assigned">assigned</span></td><td>user-01</td><td style="font-size:0.75rem">a8f3c2e91b4d...</td></tr>
+              <tr><td>slot-02</td><td><span class="badge badge-assigned">assigned</span></td><td>li.ming@corp.cn</td><td style="font-size:0.75rem">7e2b9d4f1c6a...</td></tr>
+              <tr><td>slot-03</td><td><span class="badge badge-assigned">assigned</span></td><td>zhang.wei@company.com</td><td style="font-size:0.75rem">c4d8a1f5e930...</td></tr>
+              <tr><td>slot-04</td><td><span class="badge badge-available">available</span></td><td>-</td><td style="font-size:0.75rem">f1a9b3c7d2e5...</td></tr>
+              <tr><td>slot-05</td><td><span class="badge badge-available">available</span></td><td>-</td><td style="font-size:0.75rem">b6e4c8a2f7d1...</td></tr>
+            </table>
+            <p style="margin-top:12px;color:#888;font-size:0.85rem">2 available / 5 total</p>`;
+          break;
+
+        case 'users':
+          content.innerHTML = `
+            <table class="admin-table">
+              <tr><th>Username</th><th>Role</th><th>Login Method</th><th>Slot</th><th>Instance</th></tr>
+              <tr><td>admin</td><td>admin</td><td>password</td><td>-</td><td style="font-size:0.75rem">-</td></tr>
+              <tr><td>user-01</td><td>user</td><td>password</td><td>slot-01</td><td style="font-size:0.75rem"><a href="#">Open</a></td></tr>
+              <tr><td>li.ming@corp.cn</td><td>user</td><td>SSO</td><td>slot-02</td><td style="font-size:0.75rem"><a href="#">Open</a></td></tr>
+              <tr><td>zhang.wei@company.com</td><td>user</td><td>SSO</td><td>slot-03</td><td style="font-size:0.75rem"><a href="#">Open</a></td></tr>
+            </table>`;
+          break;
+
+        case 'batch':
+          content.innerHTML = `
+            <p style="margin-bottom:12px;color:#888">Create multiple users and assign instances in one click.</p>
+            <input type="number" value="10" min="1" max="50" placeholder="Number of users" />
+            <input value="user" placeholder="Username prefix (e.g. user -> user-01, user-02)" />
+            <button>Create Users & Assign</button>
+            <div style="margin-top:16px">
+              <p class="success">Created 5 users</p>
+              <table class="admin-table">
+                <tr><th>Username</th><th>Password</th><th>Slot</th><th>Instance</th></tr>
+                <tr><td>user-01</td><td>a3f8c2e9</td><td>slot-01</td><td style="font-size:0.75rem"><a href="#">Open</a></td></tr>
+                <tr><td>user-02</td><td>7b2d4f1c</td><td>slot-02</td><td style="font-size:0.75rem"><a href="#">Open</a></td></tr>
+                <tr><td>user-03</td><td>e5a9d3c7</td><td>slot-03</td><td style="font-size:0.75rem"><a href="#">Open</a></td></tr>
+                <tr><td>user-04</td><td>1f6b8a2d</td><td>slot-04</td><td style="font-size:0.75rem"><a href="#">Open</a></td></tr>
+                <tr><td>user-05</td><td>c4e7f9b3</td><td>slot-05</td><td style="font-size:0.75rem"><a href="#">Open</a></td></tr>
+              </table>
+              <button class="btn-secondary" style="margin-top:12px">Download CSV</button>
+            </div>`;
+          break;
+      }
+    }
+
+    showView('login');
+  </script>
+</body>
+</html>

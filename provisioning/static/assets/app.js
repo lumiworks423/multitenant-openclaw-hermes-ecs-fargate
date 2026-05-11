@@ -2,6 +2,18 @@
 const API = '/api';
 let token = localStorage.getItem('token') || '';
 let currentUser = null;
+let oidcEnabled = false;
+let oidcLoginUrl = '';
+
+// Handle OIDC callback — token is in URL hash
+(function checkOidcCallback() {
+  const hash = window.location.hash;
+  if (hash.startsWith('#token=')) {
+    token = hash.substring(7);
+    localStorage.setItem('token', token);
+    history.replaceState(null, '', '/');
+  }
+})();
 
 function $(sel) { return document.querySelector(sel); }
 function api(method, path, body) {
@@ -18,10 +30,16 @@ function api(method, path, body) {
 // ── Render functions ──
 
 function renderLogin() {
+  const ssoBtn = oidcEnabled ? `
+    <a href="${oidcLoginUrl}" style="display:block;width:100%;padding:12px;background:#f39c12;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;font-weight:600;text-align:center;text-decoration:none;margin-bottom:12px">SSO Login</a>
+    <div style="text-align:center;color:#555;margin-bottom:12px;font-size:0.85rem">or login with username/password</div>
+  ` : '';
+
   $('#app').innerHTML = `
     <div class="card">
       <h2>Login</h2>
       <div id="error" class="error hidden"></div>
+      ${ssoBtn}
       <input id="username" placeholder="Username" autocomplete="username" />
       <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
       <button id="loginBtn">Login</button>
@@ -33,10 +51,16 @@ function renderLogin() {
 }
 
 function renderRegister() {
+  const ssoBtn = oidcEnabled ? `
+    <a href="${oidcLoginUrl}" style="display:block;width:100%;padding:12px;background:#f39c12;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;font-weight:600;text-align:center;text-decoration:none;margin-bottom:12px">SSO Login</a>
+    <div style="text-align:center;color:#555;margin-bottom:12px;font-size:0.85rem">or register with username/password</div>
+  ` : '';
+
   $('#app').innerHTML = `
     <div class="card">
       <h2>Register</h2>
       <div id="error" class="error hidden"></div>
+      ${ssoBtn}
       <input id="username" placeholder="Choose a username" autocomplete="username" />
       <input id="password" type="password" placeholder="Choose a password" autocomplete="new-password" />
       <button id="registerBtn">Register & Get Your Instance</button>
@@ -59,22 +83,23 @@ function renderDashboard() {
         <p style="color:#2ecc71;font-weight:600;font-size:1.05rem">🦞 OpenClaw Agent</p>
         <p style="margin-top:10px"><strong>Slot:</strong> ${inst.slot_id}</p>
         <p style="margin-top:8px"><strong>Control UI:</strong></p>
-        <p><a href="${inst.access_url}" target="_blank">${inst.access_url}</a></p>
+        <p><a href="${inst.access_url}" target="_blank">打开 OpenClaw Control UI ↗</a></p>
         <p style="margin-top:8px"><strong>Gateway Token:</strong></p>
         <div class="token-box">${inst.gateway_token}</div>
         <p style="margin-top:12px;color:#888;font-size:0.85rem">
-          打开 Control UI 链接 → 与 AI Agent 对话。<br>
-          飞书连接：告诉 Agent "帮我连接飞书" 并按指引操作。
+          点击上方链接在新标签页中打开 Control UI，与 AI Agent 对话。
         </p>
       </div>
       <div class="instance-card" style="border-color:#f39c12;margin-top:12px">
         <p style="color:#f39c12;font-weight:600;font-size:1.05rem">🤖 Hermes Agent</p>
         <p style="margin-top:10px"><strong>Slot:</strong> ${inst.slot_id}</p>
-        <p style="margin-top:8px"><strong>ECS Service:</strong></p>
-        <div class="token-box">openclaw-mt-hermes-${inst.slot_id}</div>
-        <p style="margin-top:12px;color:#888;font-size:0.85rem">
-          Hermes 为纯后端服务，通过飞书机器人与用户交互。<br>
-          飞书连接：运行 <code style="background:#222;padding:2px 6px;border-radius:3px">bash scripts/configure-feishu-hermes.sh</code>
+        <p style="margin-top:8px"><strong>Web UI:</strong></p>
+        <p><a href="/h/${inst.slot_id}/" target="_blank">打开 Hermes Web UI ↗</a></p>
+        <p style="margin-top:8px"><strong>Web UI Password:</strong></p>
+        <div class="token-box">${inst.gateway_token}</div>
+        <p style="margin-top:8px"><strong>飞书连接（可选）：</strong></p>
+        <p style="color:#888;font-size:0.85rem">
+          在 IDE 终端运行 <code style="background:#222;padding:2px 6px;border-radius:3px">bash scripts/configure-feishu-hermes.sh</code> 配置飞书机器人接入。
         </p>
       </div>`;
   } else {
@@ -280,4 +305,14 @@ async function loadMe() {
 }
 
 // ── Init ──
-if (token) { loadMe(); } else { renderLogin(); }
+async function init() {
+  // Check if OIDC is available
+  try {
+    const cfg = await fetch(`${API}/auth/oidc/config`).then(r => r.json());
+    oidcEnabled = cfg.enabled;
+    oidcLoginUrl = cfg.login_url || '';
+  } catch { /* OIDC not available, use password login */ }
+
+  if (token) { loadMe(); } else { renderLogin(); }
+}
+init();

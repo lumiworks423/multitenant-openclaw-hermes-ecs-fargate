@@ -108,6 +108,17 @@ resource "aws_security_group_rule" "ecs_ingress_alb_provisioning" {
   security_group_id        = aws_security_group.ecs.id
 }
 
+# ALB → Hermes WebUI :8787
+resource "aws_security_group_rule" "ecs_ingress_alb_hermes_webui" {
+  type                     = "ingress"
+  from_port                = 8787
+  to_port                  = 8787
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.alb.id
+  description              = "ALB to Hermes WebUI"
+  security_group_id        = aws_security_group.ecs.id
+}
+
 # --- EFS ingress ---
 
 resource "aws_security_group_rule" "efs_ingress_nfs" {
@@ -125,7 +136,7 @@ resource "aws_security_group_rule" "efs_ingress_nfs" {
 # ============================================================
 
 resource "aws_iam_role" "execution" {
-  name = "${var.project_name}-execution-role"
+  name = "${local.global_name}-execution-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -134,6 +145,7 @@ resource "aws_iam_role" "execution" {
       Action    = "sts:AssumeRole"
     }]
   })
+  lifecycle { create_before_destroy = true }
 }
 
 resource "aws_iam_role_policy_attachment" "execution_base" {
@@ -146,7 +158,7 @@ resource "aws_iam_role_policy_attachment" "execution_base" {
 # ============================================================
 
 resource "aws_iam_role" "openclaw_task" {
-  name = "${var.project_name}-openclaw-task-role"
+  name = "${local.global_name}-openclaw-task-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -155,6 +167,7 @@ resource "aws_iam_role" "openclaw_task" {
       Action    = "sts:AssumeRole"
     }]
   })
+  lifecycle { create_before_destroy = true }
 }
 
 resource "aws_iam_role_policy" "openclaw_bedrock" {
@@ -192,6 +205,19 @@ resource "aws_iam_role_policy" "openclaw_ecs_exec" {
   })
 }
 
+resource "aws_iam_role_policy" "openclaw_s3" {
+  name = "s3-read"
+  role = aws_iam_role.openclaw_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:ListBucket", "s3:ListAllMyBuckets"]
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "openclaw_efs" {
   name = "efs-access"
   role = aws_iam_role.openclaw_task.id
@@ -213,7 +239,7 @@ resource "aws_iam_role_policy" "openclaw_efs" {
 # ============================================================
 
 resource "aws_iam_role" "provisioning_task" {
-  name = "${var.project_name}-provisioning-task-role"
+  name = "${local.global_name}-provisioning-task-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -222,6 +248,7 @@ resource "aws_iam_role" "provisioning_task" {
       Action    = "sts:AssumeRole"
     }]
   })
+  lifecycle { create_before_destroy = true }
 }
 
 resource "aws_iam_role_policy" "provisioning_dynamodb" {
@@ -272,7 +299,7 @@ resource "aws_iam_role_policy" "provisioning_ecs_exec" {
 # ============================================================
 
 resource "aws_iam_role" "ssm" {
-  name = "${var.project_name}-ssm-role"
+  name = "${local.global_name}-ssm-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -281,6 +308,7 @@ resource "aws_iam_role" "ssm" {
       Action    = "sts:AssumeRole"
     }]
   })
+  lifecycle { create_before_destroy = true }
 }
 
 resource "aws_iam_role_policy_attachment" "ssm_core" {
@@ -289,8 +317,9 @@ resource "aws_iam_role_policy_attachment" "ssm_core" {
 }
 
 resource "aws_iam_instance_profile" "ssm" {
-  name = "${var.project_name}-ssm-profile"
+  name = "${local.global_name}-ssm-profile"
   role = aws_iam_role.ssm.name
+  lifecycle { create_before_destroy = true }
 }
 
 # ============================================================
@@ -298,7 +327,7 @@ resource "aws_iam_instance_profile" "ssm" {
 # ============================================================
 
 resource "aws_iam_role" "hermes_task" {
-  name = "${var.project_name}-hermes-task-role"
+  name = "${local.global_name}-hermes-task-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -307,6 +336,7 @@ resource "aws_iam_role" "hermes_task" {
       Action    = "sts:AssumeRole"
     }]
   })
+  lifecycle { create_before_destroy = true }
 }
 
 resource "aws_iam_role_policy" "hermes_bedrock" {
@@ -322,6 +352,19 @@ resource "aws_iam_role_policy" "hermes_bedrock" {
         "arn:aws:bedrock:*:*:inference-profile/*",
         "arn:aws:bedrock:*:*:application-inference-profile/*"
       ]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "hermes_s3" {
+  name = "s3-read"
+  role = aws_iam_role.hermes_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:ListBucket", "s3:ListAllMyBuckets"]
+      Resource = "*"
     }]
   })
 }
@@ -357,5 +400,100 @@ resource "aws_iam_role_policy" "hermes_ecs_exec" {
       ]
       Resource = "*"
     }]
+  })
+}
+
+# ============================================================
+# IAM — EKS + EMR access for Agent task roles (default)
+# Allows: describe cluster, manage EMR virtual clusters, submit jobs
+# ============================================================
+
+resource "aws_iam_role_policy" "openclaw_eks" {
+  name = "eks-access"
+  role = aws_iam_role.openclaw_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "eks:CreateCluster",
+          "eks:DeleteCluster",
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:UpdateClusterConfig",
+          "eks:CreateNodegroup",
+          "eks:DeleteNodegroup",
+          "eks:DescribeNodegroup",
+          "eks:ListNodegroups",
+          "eks:UpdateNodegroupConfig",
+          "eks:TagResource"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeVpcs",
+          "ec2:CreateSecurityGroup",
+          "ec2:CreateTags",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["iam:PassRole", "iam:GetRole", "iam:ListAttachedRolePolicies"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "hermes_eks" {
+  name = "eks-access"
+  role = aws_iam_role.hermes_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "eks:CreateCluster",
+          "eks:DeleteCluster",
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:UpdateClusterConfig",
+          "eks:CreateNodegroup",
+          "eks:DeleteNodegroup",
+          "eks:DescribeNodegroup",
+          "eks:ListNodegroups",
+          "eks:UpdateNodegroupConfig",
+          "eks:TagResource"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeVpcs",
+          "ec2:CreateSecurityGroup",
+          "ec2:CreateTags",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["iam:PassRole", "iam:GetRole", "iam:ListAttachedRolePolicies"]
+        Resource = "*"
+      }
+    ]
   })
 }

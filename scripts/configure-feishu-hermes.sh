@@ -25,8 +25,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"; pwd)"
 echo ""
 echo "[1/5] Reading parameters from SSM..."
 PROJECT_NAME="${PROJECT_NAME:-mt-openclaw-hermes-ecs}"
-REGION=$(TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null) && curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null)
-REGION="${REGION:-${AWS_REGION:-us-east-1}}"
+REGION=$(curl -s --connect-timeout 2 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null | xargs -I{} curl -s --connect-timeout 2 -H "X-aws-ec2-metadata-token: {}" http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || true)
+REGION="${REGION:-${AWS_REGION:-$(aws configure get region 2>/dev/null || echo us-east-1)}}"
 
 ssm_get() { aws ssm get-parameter --name "/${PROJECT_NAME}/$1" --query 'Parameter.Value' --output text --region "$REGION"; }
 
@@ -119,7 +119,7 @@ echo ""
 echo "[5/5] Restarting Hermes service for ${SLOT_ID}..."
 aws ecs update-service --cluster "$ECS_CLUSTER" \
   --service "${PROJECT_NAME}-hermes-${SLOT_ID}" \
-  --force-new-deployment --region "$REGION" --no-cli-pager \
+  --force-new-deployment --region "$REGION" \
   --query 'service.serviceName' --output text
 
 echo ""

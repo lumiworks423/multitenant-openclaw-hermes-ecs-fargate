@@ -25,7 +25,7 @@ variable "slot_count" {
 variable "openclaw_image" {
   description = "OpenClaw Docker image (pinned to verified working version)"
   type        = string
-  default     = "ghcr.io/openclaw/openclaw:2026.4.21"
+  default     = "public.ecr.aws/w7t9b2j0/openclaw:2026.4.21"
 }
 
 variable "openclaw_cpu" {
@@ -49,17 +49,29 @@ variable "admin_password" {
 variable "hermes_image" {
   description = "Hermes Agent Docker image (pinned to verified working version)"
   type        = string
-  default     = "nousresearch/hermes-agent:v2026.4.23"
+  default     = "public.ecr.aws/w7t9b2j0/hermes:2026.4.23"
 }
 
 variable "hermes_cpu" {
   description = "CPU units per Hermes task (1024 = 1 vCPU)"
   type        = number
-  default     = 1024
+  default     = 2048
 }
 
 variable "hermes_memory" {
   description = "Memory in MB per Hermes task"
   type        = number
-  default     = 2048
+  default     = 4096
+}
+
+variable "eks_cluster_version" {
+  description = "EKS Kubernetes version"
+  type        = string
+  default     = "1.35"
+}
+
+variable "eks_node_instance_types" {
+  description = "Instance types for the Karpenter bootstrap node group"
+  type        = list(string)
+  default     = ["m7g.xlarge"]
 }

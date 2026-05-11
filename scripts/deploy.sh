@@ -23,8 +23,8 @@ $SKIP_BUILD && echo "  (--skip-build: skipping image build)"
 # ── Step 1: Read parameters from SSM Parameter Store ──
 echo "[1/8] Reading parameters from SSM..."
 PROJECT_NAME="${PROJECT_NAME:-mt-openclaw-hermes-ecs}"
-REGION=$(TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null) && curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null)
-REGION="${REGION:-${AWS_REGION:-us-east-1}}"
+REGION=$(curl -s --connect-timeout 2 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null | xargs -I{} curl -s --connect-timeout 2 -H "X-aws-ec2-metadata-token: {}" http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || true)
+REGION="${REGION:-${AWS_REGION:-$(aws configure get region 2>/dev/null || echo us-east-1)}}"
 
 ssm_get() { aws ssm get-parameter --name "/${PROJECT_NAME}/$1" --query 'Parameter.Value' --output text --region "$REGION"; }
 
@@ -43,7 +43,7 @@ ACCOUNT=$(echo "$PROV_ECR" | cut -d. -f1)
 echo "  Region=$REGION Cluster=$ECS_CLUSTER Slots=$SLOT_COUNT"
 echo "  CF=$CF_DOMAIN"
 
-S3_BUCKET="${PROJECT_NAME}-build-tmp-${ACCOUNT}"
+S3_BUCKET="${PROJECT_NAME}-build-tmp-${REGION}-${ACCOUNT}"
 TOKENS_OUTPUT=""
 
 if $SKIP_BUILD; then
@@ -61,7 +61,7 @@ else
   # ── Step 2.5: Ensure IAM permissions ──
   echo "[2.5/8] Ensuring IAM permissions..."
   aws iam put-role-policy \
-    --role-name ${PROJECT_NAME}-ssm-role \
+    --role-name ${PROJECT_NAME}-${REGION}-ssm-role \
     --policy-name build-permissions \
     --policy-document "{
       \"Version\": \"2012-10-17\",
@@ -229,7 +229,7 @@ for i in $(seq 1 "$SLOT_COUNT"); do
   SLOT=$(printf "slot-%02d" "$i")
   echo "  Scaling up ${PROJECT_NAME}-${SLOT}..."
   aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-${SLOT}" \
-    --desired-count 1 --force-new-deployment --region "$REGION" --no-cli-pager \
+    --desired-count 1 --force-new-deployment --region "$REGION" --output text \
     --query 'service.serviceName' --output text 2>/dev/null || true
 done
 # Scale up + restart Hermes services
@@ -237,15 +237,15 @@ for i in $(seq 1 "$SLOT_COUNT"); do
   SLOT=$(printf "slot-%02d" "$i")
   echo "  Scaling up ${PROJECT_NAME}-hermes-${SLOT}..."
   aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-hermes-${SLOT}" \
-    --desired-count 1 --force-new-deployment --region "$REGION" --no-cli-pager \
+    --desired-count 1 --force-new-deployment --region "$REGION" --output text \
     --query 'service.serviceName' --output text 2>/dev/null || true
 done
 aws ecs update-service --cluster "$ECS_CLUSTER" --service "${PROJECT_NAME}-provisioning" \
-  --force-new-deployment --region "$REGION" --no-cli-pager \
+  --force-new-deployment --region "$REGION" --output text \
   --query 'service.serviceName' --output text 2>/dev/null || true
 
 echo "  Services restarting. Wait 2-3 min for tasks to stabilize."
 echo ""
 echo "=== Deploy Complete ==="
 echo "Workshop URL: https://${CF_DOMAIN}"
-echo "Admin login: admin / workshop-2026"
+echo "Admin login: admin / <ADMIN_PASSWORD from terraform.tfvars>"

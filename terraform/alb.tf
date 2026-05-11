@@ -82,3 +82,40 @@ resource "aws_lb_listener_rule" "openclaw" {
     target_group_arn = aws_lb_target_group.openclaw[count.index].arn
   }
 }
+
+# ---- Per-slot Hermes WebUI: /h/slot-XX/* → Hermes WebUI slot-XX ----
+
+resource "aws_lb_target_group" "hermes_webui" {
+  count       = var.slot_count
+  name        = "hw-${local.slot_ids[count.index]}-tg"
+  port        = 8787
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+
+  health_check {
+    path                = "/"
+    healthy_threshold   = 2
+    unhealthy_threshold = 5
+    timeout             = 10
+    interval            = 30
+    matcher             = "200-302"
+  }
+}
+
+resource "aws_lb_listener_rule" "hermes_webui" {
+  count        = var.slot_count
+  listener_arn = aws_lb_listener.main.arn
+  priority     = 30 + count.index
+
+  condition {
+    path_pattern {
+      values = ["/h/${local.slot_ids[count.index]}/*", "/h/${local.slot_ids[count.index]}"]
+    }
+  }
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.hermes_webui[count.index].arn
+  }
+}

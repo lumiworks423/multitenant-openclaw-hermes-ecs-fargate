@@ -64,3 +64,18 @@ output "project_name" {
   description = "Project name prefix for all resources"
   value       = var.project_name
 }
+
+output "eks_cluster_name" {
+  description = "EKS cluster name"
+  value       = module.eks.cluster_name
+}
+
+output "eks_cluster_endpoint" {
+  description = "EKS API endpoint"
+  value       = module.eks.cluster_endpoint
+}
+
+output "spark_namespace" {
+  description = "Kubernetes namespace for Spark jobs"
+  value       = "emr-spark"
+}

@@ -19,6 +19,7 @@ resource "aws_ecr_repository" "provisioning" {
   name                 = "${var.project_name}-provisioning"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
+  lifecycle { prevent_destroy = false }
 }
 
 # ============================================================
@@ -54,6 +55,7 @@ resource "aws_ecs_task_definition" "openclaw" {
 
       environment = [
         { name = "AWS_REGION", value = var.aws_region },
+        { name = "PROJECT_NAME", value = var.project_name },
         { name = "NODE_OPTIONS", value = "--max-old-space-size=1536" }
       ]
 
@@ -157,7 +159,11 @@ resource "aws_ecs_task_definition" "provisioning" {
         { name = "DYNAMODB_USERS_TABLE", value = aws_dynamodb_table.users.name },
         { name = "ADMIN_PASSWORD", value = var.admin_password },
         { name = "CLOUDFRONT_DOMAIN", value = aws_cloudfront_distribution.main.domain_name },
-        { name = "SLOT_COUNT", value = tostring(var.slot_count) }
+        { name = "SLOT_COUNT", value = tostring(var.slot_count) },
+        { name = "COGNITO_USER_POOL_ID", value = aws_cognito_user_pool.main.id },
+        { name = "COGNITO_CLIENT_ID", value = aws_cognito_user_pool_client.main.id },
+        { name = "COGNITO_CLIENT_SECRET", value = aws_cognito_user_pool_client.main.client_secret },
+        { name = "COGNITO_DOMAIN", value = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com" }
       ]
 
       logConfiguration = {
@@ -214,36 +220,39 @@ resource "aws_ecs_task_definition" "hermes" {
     operating_system_family = "LINUX"
   }
 
-  container_definitions = jsonencode([{
-    name      = "hermes-agent"
-    image     = var.hermes_image
-    essential = true
-    command   = ["gateway", "run"]
+  container_definitions = jsonencode([
+    {
+      name      = "hermes-agent"
+      image     = var.hermes_image
+      essential = true
+      command = ["/bin/sh", "/opt/data/run.sh"]
 
-    portMappings = [{
-      containerPort = 8642
-      protocol      = "tcp"
-    }]
+      portMappings = [
+        { containerPort = 8642, protocol = "tcp" },
+        { containerPort = 8787, protocol = "tcp" }
+      ]
 
-    environment = [
-      { name = "AWS_REGION", value = var.aws_region }
-    ]
+      environment = [
+        { name = "AWS_REGION", value = var.aws_region },
+        { name = "PROJECT_NAME", value = var.project_name }
+      ]
 
-    mountPoints = [{
-      sourceVolume  = "hermes-data"
-      containerPath = "/opt/data"
-      readOnly      = false
-    }]
+      mountPoints = [{
+        sourceVolume  = "hermes-data"
+        containerPath = "/opt/data"
+        readOnly      = false
+      }]
 
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        "awslogs-group"         = aws_cloudwatch_log_group.main.name
-        "awslogs-region"        = var.aws_region
-        "awslogs-stream-prefix" = "hermes-${local.slot_ids[count.index]}"
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.main.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "hermes-${local.slot_ids[count.index]}"
+        }
       }
     }
-  }])
+  ])
 
   volume {
     name = "hermes-data"
@@ -276,7 +285,13 @@ resource "aws_ecs_service" "hermes" {
     assign_public_ip = false
   }
 
-  depends_on = [aws_efs_mount_target.main]
+  load_balancer {
+    target_group_arn = aws_lb_target_group.hermes_webui[count.index].arn
+    container_name   = "hermes-agent"
+    container_port   = 8787
+  }
+
+  depends_on = [aws_efs_mount_target.main, aws_lb_listener.main]
 
   lifecycle {
     ignore_changes = [desired_count]

@@ -5,7 +5,7 @@
 
 resource "aws_cloudfront_vpc_origin" "alb" {
   vpc_origin_endpoint_config {
-    name                   = "${var.project_name}-alb-origin"
+    name                   = "${local.global_name}-alb-origin"
     arn                    = aws_lb.main.arn
     http_port              = 80
     https_port             = 443
@@ -22,7 +22,7 @@ resource "aws_cloudfront_vpc_origin" "alb" {
 
 # Cache disabled — dynamic app
 resource "aws_cloudfront_cache_policy" "disabled" {
-  name        = "${var.project_name}-no-cache"
+  name        = "${local.global_name}-no-cache"
   min_ttl     = 0
   default_ttl = 0
   max_ttl     = 0
@@ -42,7 +42,7 @@ resource "aws_cloudfront_cache_policy" "disabled" {
 
 # Forward all viewer headers/cookies/qs for session auth + WebSocket
 resource "aws_cloudfront_origin_request_policy" "all_viewer" {
-  name = "${var.project_name}-all-viewer"
+  name = "${local.global_name}-all-viewer"
 
   cookies_config {
     cookie_behavior = "all"

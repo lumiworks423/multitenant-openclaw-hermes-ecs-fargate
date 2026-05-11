@@ -106,6 +106,7 @@ resource "aws_dynamodb_table" "slots" {
   }
 
   tags = { Name = "${var.project_name}-slots" }
+  lifecycle { prevent_destroy = false }
 }
 
 # ============================================================
@@ -123,6 +124,7 @@ resource "aws_dynamodb_table" "users" {
   }
 
   tags = { Name = "${var.project_name}-users" }
+  lifecycle { prevent_destroy = false }
 }
 
 # ============================================================

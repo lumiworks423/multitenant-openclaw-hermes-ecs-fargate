@@ -5,11 +5,51 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.25"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.12"
+    }
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = "~> 2.0"
+    }
+  }
+
+  backend "s3" {
+    key          = "terraform.tfstate"
+    use_lockfile = true
+    encrypt      = true
   }
 }
 
 provider "aws" {
   region = var.aws_region
+}
+
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
+  }
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
+    }
+  }
 }
 
 data "aws_caller_identity" "current" {}
@@ -19,6 +59,8 @@ locals {
   azs = slice(data.aws_availability_zones.available.names, 0, 2)
   # Generate slot IDs: slot-01, slot-02, ...
   slot_ids = [for i in range(var.slot_count) : format("slot-%02d", i + 1)]
+  # Global resource prefix (IAM, CloudFront are global — need region in name)
+  global_name = "${var.project_name}-${var.aws_region}"
 }
 
 # ============================================================
@@ -51,7 +93,12 @@ resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index + 10)
   availability_zone = local.azs[count.index]
-  tags              = { Name = "${var.project_name}-private-${local.azs[count.index]}" }
+  tags = {
+    Name                                                = "${var.project_name}-private-${local.azs[count.index]}"
+    "kubernetes.io/role/internal-elb"                   = "1"
+    "karpenter.sh/discovery"                           = "${var.project_name}-eks"
+    "kubernetes.io/cluster/${var.project_name}-eks"     = "shared"
+  }
 }
 
 resource "aws_eip" "nat" {
