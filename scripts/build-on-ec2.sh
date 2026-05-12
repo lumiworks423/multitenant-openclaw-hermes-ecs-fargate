@@ -79,11 +79,11 @@ for i in $(seq 1 "$SLOT_COUNT"); do
         "auth": "aws-sdk",
         "models": [
           {
-            "id": "deepseek.v3.2",
-            "name": "DeepSeek V3.2",
+            "id": "moonshotai.kimi-k2.5",
+            "name": "Kimi K2.5",
             "input": ["text"],
-            "contextWindow": 128000,
-            "maxTokens": 8192
+            "contextWindow": 256000,
+            "maxTokens": 16384
           }
         ]
       }
@@ -94,7 +94,7 @@ for i in $(seq 1 "$SLOT_COUNT"); do
       "maxConcurrent": 4,
       "workspace": "/home/node/.openclaw/workspace",
       "model": {
-        "primary": "amazon-bedrock/deepseek.v3.2"
+        "primary": "amazon-bedrock/moonshotai.kimi-k2.5"
       }
     }
   },
@@ -186,7 +186,7 @@ PATCH_CODE = '''
 
             _bedrock_region = resolve_bedrock_region()
             _cfg = _load_cfg() or {}
-            _default_model = _cfg.get("model", {}).get("default", "deepseek.v3.2") if isinstance(_cfg, dict) else "deepseek.v3.2"
+            _default_model = _cfg.get("model", {}).get("default", "moonshotai.kimi-k2.5") if isinstance(_cfg, dict) else "moonshotai.kimi-k2.5"
 
             class _BedrockCompletions:
                 def create(self, model=None, messages=None, max_tokens=4096,

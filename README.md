@@ -10,7 +10,7 @@ Multi-tenant AI Agent platform on AWS ECS Fargate (Graviton ARM64), supporting O
 - **ALB + CloudFront**: HTTPS routing with path-based rules per slot
 - **Cognito**: OIDC SSO authentication
 - **DynamoDB**: Slot management and user assignment
-- **Amazon Bedrock**: Kimi K2.5 (Hermes) / DeepSeek V3.2 (OpenClaw)
+- **Amazon Bedrock**: Kimi K2.5 (Hermes + OpenClaw)
 - **Provisioning Service**: Self-service registration portal (FastAPI + Vanilla JS)
 
 ## Repository Structure
