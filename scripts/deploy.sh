@@ -23,9 +23,9 @@ $SKIP_BUILD && echo "  (--skip-build: skipping image build)"
 # ── Step 1: Read parameters from SSM Parameter Store ──
 echo "[1/8] Reading parameters from SSM..."
 TF_DIR="${PROJECT_DIR}/terraform"
-PROJECT_NAME=$(grep 'project_name' "$TF_DIR/terraform.tfvars" 2>/dev/null | awk -F'"' '{print $2}')
-PROJECT_NAME="${PROJECT_NAME:-mt-openclaw-hermes-ecs}"
-TF_REGION=$(grep 'aws_region' "$TF_DIR/terraform.tfvars" 2>/dev/null | awk -F'"' '{print $2}')
+PROJECT_NAME=$(grep 'project_name' "$TF_DIR/terraform.tfvars" 2>/dev/null | awk -F'"' '{print $2}' || true)
+PROJECT_NAME="${PROJECT_NAME:-${PROJECT_NAME_ENV:-mt-openclaw-hermes-ecs}}"
+TF_REGION=$(grep 'aws_region' "$TF_DIR/terraform.tfvars" 2>/dev/null | awk -F'"' '{print $2}' || true)
 REGION=$(curl -s --connect-timeout 2 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null | xargs -I{} curl -s --connect-timeout 2 -H "X-aws-ec2-metadata-token: {}" http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || true)
 REGION="${REGION:-${AWS_REGION:-${TF_REGION:-$(aws configure get region 2>/dev/null || echo us-east-1)}}}"
 
