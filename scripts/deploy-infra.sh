@@ -50,6 +50,21 @@ ensure_backend() {
 # ── Step 2: Init ──
 do_init() {
   echo "[2] terraform init..."
+
+  # Generate backend.tf if not present (Workshop Studio provides its own)
+  if [ ! -f backend.tf ]; then
+    cat > backend.tf <<EOF
+terraform {
+  backend "s3" {
+    key          = "terraform.tfstate"
+    use_lockfile = true
+    encrypt      = true
+  }
+}
+EOF
+    echo "  Generated backend.tf"
+  fi
+
   BACKEND_ARGS="-backend-config=bucket=${STATE_BUCKET} -backend-config=region=${REGION}"
   if [ -d .terraform/providers ] && [ -f .terraform.lock.hcl ]; then
     echo "  Already initialized, running reconfigure..."

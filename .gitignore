@@ -6,6 +6,7 @@ terraform/terraform.tfstate.*.backup
 terraform/tfplan
 terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
+terraform/backend.tf
 
 # Keep example
 !terraform/terraform.tfvars.example

@@ -19,11 +19,8 @@ terraform {
     }
   }
 
-  backend "s3" {
-    key          = "terraform.tfstate"
-    use_lockfile = true
-    encrypt      = true
-  }
+  # Backend configured by deploy-infra.sh (-backend-config) or Workshop Studio (backend.tf)
+  # Do not add backend block here — it conflicts with Workshop Studio's auto-generated backend.tf
 }
 
 provider "aws" {
