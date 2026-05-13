@@ -17,7 +17,7 @@ cd "$TF_DIR"
 
 ACTION="${1:-apply}"
 REGION=$(grep 'aws_region' terraform.tfvars 2>/dev/null | awk -F'"' '{print $2}')
-REGION="${REGION:-ap-south-1}"
+REGION="${REGION:-us-east-1}"
 PROJECT_NAME=$(grep 'project_name' terraform.tfvars 2>/dev/null | awk -F'"' '{print $2}')
 PROJECT_NAME="${PROJECT_NAME:-mt-openclaw-hermes-ecs}"
 
@@ -210,7 +210,7 @@ grep_tf_addr_for_tg() {
   local name="$1"
   case "$name" in
     oc-slot-*-tg)
-      local idx=$(echo "$name" | grep -oP 'slot-\K\d+')
+      local idx=$(echo "$name" | sed 's/.*slot-\([0-9]*\).*/\1/')
       idx=$((10#$idx - 1))
       echo "aws_lb_target_group.openclaw[$idx]"
       ;;
