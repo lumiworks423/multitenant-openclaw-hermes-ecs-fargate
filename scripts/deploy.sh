@@ -251,4 +251,5 @@ echo "  Services restarting. Wait 2-3 min for tasks to stabilize."
 echo ""
 echo "=== Deploy Complete ==="
 echo "Workshop URL: https://${CF_DOMAIN}"
-echo "Admin login: admin / <ADMIN_PASSWORD from terraform.tfvars>"
+ADMIN_PW=$(grep 'admin_password' "$TF_DIR/terraform.tfvars" 2>/dev/null | awk -F'"' '{print $2}' || echo "workshop-2026")
+echo "Admin login: admin / ${ADMIN_PW}"
