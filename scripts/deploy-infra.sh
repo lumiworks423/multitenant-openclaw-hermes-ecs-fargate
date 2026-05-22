@@ -30,13 +30,24 @@ echo "  Project: $PROJECT_NAME"
 echo "  Action: $ACTION"
 echo ""
 
+# ── Helper: create S3 bucket (handles us-east-1 special case) ──
+create_s3_bucket() {
+  local bucket_name="$1"
+  local region="$2"
+  if [ "$region" = "us-east-1" ]; then
+    aws s3api create-bucket --bucket "$bucket_name" --region "$region" > /dev/null
+  else
+    aws s3api create-bucket --bucket "$bucket_name" --region "$region" \
+      --create-bucket-configuration LocationConstraint="$region" > /dev/null
+  fi
+}
+
 # ── Step 1: Ensure S3 backend resources exist ──
 ensure_backend() {
   echo "[1] Ensuring S3 backend..."
   if ! aws s3api head-bucket --bucket "$STATE_BUCKET" --region "$REGION" 2>/dev/null; then
     echo "  Creating state bucket: $STATE_BUCKET"
-    aws s3api create-bucket --bucket "$STATE_BUCKET" --region "$REGION" \
-      --create-bucket-configuration LocationConstraint="$REGION" > /dev/null
+    create_s3_bucket "$STATE_BUCKET" "$REGION"
     aws s3api put-bucket-versioning --bucket "$STATE_BUCKET" \
       --versioning-configuration Status=Enabled --region "$REGION"
   else
@@ -241,8 +252,7 @@ prepare_datasets() {
   echo "[4] Preparing analysis datasets..."
   if ! aws s3api head-bucket --bucket "$DATASET_BUCKET" --region "$REGION" 2>/dev/null; then
     echo "  Creating dataset bucket: $DATASET_BUCKET"
-    aws s3api create-bucket --bucket "$DATASET_BUCKET" --region "$REGION" \
-      --create-bucket-configuration LocationConstraint="$REGION" > /dev/null
+    create_s3_bucket "$DATASET_BUCKET" "$REGION"
   else
     echo "  Dataset bucket exists"
   fi
