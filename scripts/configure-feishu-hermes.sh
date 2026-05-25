@@ -111,6 +111,7 @@ for SLOT_ENTRY in "${SLOTS[@]}"; do
       "sed -i \"s|^# FEISHU_APP_SECRET=.*|FEISHU_APP_SECRET='"${FEISHU_APP_SECRET}"'|\" $HERMES_DIR/.env",
       "sed -i \"s|^# FEISHU_DOMAIN=.*|FEISHU_DOMAIN=feishu|\" $HERMES_DIR/.env",
       "sed -i \"s|^# FEISHU_CONNECTION_MODE=.*|FEISHU_CONNECTION_MODE=websocket|\" $HERMES_DIR/.env",
+      "sed -i \"s|^# FEISHU_GROUP_POLICY=.*|FEISHU_GROUP_POLICY=open|\" $HERMES_DIR/.env",
       "echo \"Updated .env for '"${SLOT_ID}"':\"",
       "grep FEISHU $HERMES_DIR/.env",
       "umount /mnt/efs 2>/dev/null"
