@@ -62,6 +62,58 @@ bash deploy.sh
 bash configure-feishu-hermes.sh
 ```
 
+## 扩缩 Slot 数量
+
+`slot_count` 控制预创建的 OpenClaw + Hermes 实例数。所有 per-slot 资源（ECS Service、ALB Target Group、EFS Access Point、Service Discovery）都由 Terraform `count` 驱动，扩缩只需改一个数字。
+
+### 步骤
+
+1. 修改 `terraform/terraform.tfvars`：
+
+```hcl
+slot_count = 8   # 从 2 扩到 8（或其他数字）
+```
+
+2. Apply 基础设施变更：
+
+```bash
+cd terraform
+terraform apply
+```
+
+Terraform 会增量创建新 slot 的资源，已有 slot 不受影响。
+
+3. 重新部署应用（为新 slot 初始化 EFS 配置 + DynamoDB 记录）：
+
+```bash
+cd scripts
+bash deploy.sh
+```
+
+### 资源开销参考
+
+每个 slot 消耗：
+- OpenClaw: 1 vCPU / 2 GB（Fargate）
+- Hermes: 2 vCPU / 4 GB（Fargate）
+
+8 个 slot 总计 24 vCPU / 48 GB。注意检查目标 Region 的 Fargate vCPU 配额（默认 quota 通常为 64）。
+
+### 缩容
+
+减小 `slot_count` 后 `terraform apply` 会销毁多余的 slot 资源。已分配给用户的 slot 会丢失，操作前确认无活跃用户。
+
+## 配置飞书权限
+
+飞书机器人需要以下权限才能正常收发消息：
+
+| 权限 scope | 用途 |
+|---|---|
+| `im:chat:readonly` | 读取群聊信息（必须） |
+| `im:message:send_as_bot` | 以机器人身份回复消息（必须） |
+| `im:message` | 接收消息事件（必须） |
+
+在飞书开放平台 → 应用权限页面开通后，需要**发布版本**使权限生效。
+
 ## 验证
 
 部署完成后，访问 CloudFront URL（在 deploy.sh 输出中）：
