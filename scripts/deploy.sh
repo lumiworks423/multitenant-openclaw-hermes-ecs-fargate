@@ -79,7 +79,7 @@ else
   echo "[3/8] Launching ARM64 EC2..."
   INSTANCE_ID=$(aws ec2 run-instances \
     --image-id resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64 \
-    --instance-type t4g.large \
+    --instance-type t4g.medium \
     --subnet-id "$SUBNET_ID" \
     --security-group-ids "$ECS_SG" \
     --iam-instance-profile Name="$SSM_PROFILE" \
