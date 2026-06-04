@@ -322,6 +322,7 @@ GATEWAY_ALLOW_ALL_USERS=true
 # FEISHU_APP_SECRET=secret_xxx
 # FEISHU_DOMAIN=feishu
 # FEISHU_CONNECTION_MODE=websocket
+# FEISHU_GROUP_POLICY=open
 EOFENV
 
   # Pre-download hermes-webui to EFS
